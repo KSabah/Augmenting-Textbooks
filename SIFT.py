@@ -24,59 +24,79 @@ def unpickle_keypoints(array):
         descriptors.append(temp_descriptor)
     return keypoints, np.array(descriptors)
 
-groundtruth = cv.imread('images/Ground-Truth-pg69.jpg')
-test1 = cv.imread('images/Test1-pg69.jpg')
+test1 = cv.imread('images/Test1-pg94.jpg')
+#test2 = cv.imread('images/Test2-pg69.jpg')
 
-groundtruth = cv.cvtColor(groundtruth,cv.COLOR_BGR2GRAY)
 test1 = cv.cvtColor(test1,cv.COLOR_BGR2GRAY)
+#test2 = cv.cvtColor(test2,cv.COLOR_BGR2GRAY)
 
 sift = cv.xfeatures2d.SIFT_create()
 
-if not os.path.exists("files/keypoints69.txt"):
-    groundtruth_kp, groundtruth_d = sift.detectAndCompute(groundtruth,None)
-    temp_array = []
-    temp = pickle_keypoints(groundtruth_kp, groundtruth_d)
-    temp_array.append(temp)
-    pickle.dump(temp_array, open("files/keypoints69.txt", "wb"))
-
-else:
-    keypoints_database = pickle.load(open("files/keypoints69.txt", "rb"))
-    groundtruth_kp, groundtruth_d = unpickle_keypoints(keypoints_database[0])
-
 test1_kp, test1_d = sift.detectAndCompute(test1,None)
+#test2_kp, test2_d = sift.detectAndCompute(test2,None)
 
-#***Brute-Force Matcher for SIFT***
-#bf = cv.BFMatcher()
-#matches = bf.knnMatch(groundtruth_d,test1_d,k=2)
-# Apply ratio test
-#good = []
-#for m,n in matches:
-#    if m.distance < 0.75*n.distance:
-#        good.append([m])
-# cv.drawMatchesKnn expects list of lists as matches.
-#result1 = cv.drawMatchesKnn(groundtruth, groundtruth_kp, test1, test1_kp,good,None,flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-
+#***Flann Matcher***
 FLANN_INDEX_KDTREE = 1
 index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
-search_params = dict(checks=50)   # or pass empty dictionary
+search_params = dict(checks=50)  
 flann = cv.FlannBasedMatcher(index_params,search_params)
-matches = flann.knnMatch(groundtruth_d,test1_d,k=2)
-# Need to draw only good matches, so create a mask
-matchesMask = [[0,0] for i in range(len(matches))]
-# ratio test as per Lowe's paper
-for i,(m,n) in enumerate(matches):
+
+good_matches = 0
+old_good_matches = 0
+result = ""
+matches_result = None 
+result_kp = None
+result_d = None  
+
+for image in os.listdir('groundtruth/'):
+    str_arr = image.split("-")
+    good_matches = 0
+    groundtruth = cv.imread('groundtruth/'+image) 
+        
+    if not os.path.exists("files/keypoints"+str_arr[1]+".txt"):
+        groundtruth_kp, groundtruth_d = sift.detectAndCompute(groundtruth,None)
+        temp_array = []
+        temp = pickle_keypoints(groundtruth_kp, groundtruth_d)
+        temp_array.append(temp)
+        pickle.dump(temp_array, open("files/keypoints"+str_arr[1]+".txt", "wb"))
+    else:
+     keypoints_database = pickle.load(open("files/keypoints"+str_arr[1]+".txt", "rb"))
+     groundtruth_kp, groundtruth_d = unpickle_keypoints(keypoints_database[0])
+    
+    matches = flann.knnMatch(groundtruth_d,test1_d,k=2)
+    #Mask for good matches
+    matchesMask = [[0,0] for i in range(len(matches))]
+    #Ratio test 
+    for i,(m,n) in enumerate(matches):
+        if m.distance < 0.5*n.distance:
+            matchesMask[i]=[1,0]
+            good_matches += 1
+    
+    if good_matches > old_good_matches:
+        old_good_matches = good_matches
+        result_final = groundtruth
+        matches_result = matches
+        result_kp = groundtruth_kp
+        result_d = groundtruth_d
+    
+    print(old_good_matches)
+    print(good_matches)
+    
+matchesMask = [[0,0] for i in range(len(matches_result))]
+for i,(m,n) in enumerate(matches_result):
     if m.distance < 0.5*n.distance:
         matchesMask[i]=[1,0]
 draw_params = dict(matchColor = (0,255,0),
                    singlePointColor = (255,0,0),
                    matchesMask = matchesMask,
                    flags = cv.DrawMatchesFlags_DEFAULT)
-result1 = cv.drawMatchesKnn(groundtruth, groundtruth_kp, test1, test1_kp, matches, None, **draw_params)
+res = cv.drawMatchesKnn(result_final, result_kp, test1, test1_kp, matches_result, None, **draw_params)
 
 cv.namedWindow('Result 1', cv.WINDOW_NORMAL)
 cv.resizeWindow('Result 1', 1800,900)
-cv.imshow('Result 1',result1)
-#cv.imwrite('images/surfResult1.jpg',result1)
+cv.imshow('Result 1',res)
+#Change filename below to save any new images
+#cv.imwrite('images/siftResult1.jpg',result1)
 
 cv.waitKey(0)
 cv.destroyAllWindows()
