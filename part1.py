@@ -7,8 +7,6 @@ import time
 
 from CountsPerSec import CountsPerSec
 
-first_frame = bool(False)
-book_found = 0
 frame_counter = 0
 
 def putIterationsPerSec(frame, iterations_per_sec):
@@ -29,37 +27,10 @@ def unpickle_keypoints(array):
         descriptors.append(temp_descriptor)
     return keypoints, np.array(descriptors)
 
-def find_book(ndarray):
-    #Convert to Greyscale
-    gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-    #Threshold using Otsu
-    thresh, binary = cv.threshold(gray, 128, 255, cv.THRESH_BINARY | cv.THRESH_OTSU)
-    #Erosion to keep the letters and other small contours that may be lost
-    kernel = np.ones((3,3),np.uint8)
-    morph = cv.erode(binary,kernel,iterations = 3)
-    x = 0
-    y = 0
-    w = 0
-    h = 0
-    #Find contours
-    image, contours, hierarchy = cv.findContours(morph,cv.RETR_TREE,cv.CHAIN_APPROX_SIMPLE)  
-    if len(contours) != 0:
-        #Find biggest countour (c) by the area
-        c = max(contours, key = cv.contourArea)
-        x,y,w,h = cv.boundingRect(c)
-        #print (cv.contourArea(c))
-        #Draw the biggest contour (c) in green
-        #cv.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
-        roi = frame[y:y+h, x:x+w]
-        print("ROI found!")
-        cv.imshow('Region of Interest', roi)
-        return roi
-    return None
-
 #https://nrsyed.com/2018/07/05/multithreading-with-opencv-python-to-improve-video-processing-performance/
 #Fuck you huge helpfuls link
 #Fix this function please and thanks bby
-def sift_operation(ndarray):
+def sift_operation(frame):
     sift = cv.xfeatures2d.SIFT_create()
     frame_kp, frame_d = sift.detectAndCompute(frame, None)
 
@@ -72,6 +43,7 @@ def sift_operation(ndarray):
     good_matches = 0
     old_good_matches = 0
     result = ""
+    result_final = None
     matches_result = None 
     result_kp = None
     result_d = None  
@@ -83,10 +55,15 @@ def sift_operation(ndarray):
                 
         if not os.path.exists("files/keypoints"+str_arr[1]+".txt"):
             print ("Cannot find keypoints for groundtruth image, needs to be added to database")
+            exit()
         else:
             keypoints_database = pickle.load(open("files/keypoints"+str_arr[1]+".txt", "rb"))
             groundtruth_kp, groundtruth_d = unpickle_keypoints(keypoints_database[0])
-            
+
+        if (not frame_kp or not groundtruth_kp):
+            print("No descriptors found.")
+            break
+
         matches = flann.knnMatch(groundtruth_d,frame_d,k=2)
         #Mask for good matches
         matchesMask = [[0,0] for i in range(len(matches))]
@@ -103,19 +80,16 @@ def sift_operation(ndarray):
             result_kp = groundtruth_kp
             result_d = groundtruth_d
             
-        #print(old_good_matches)
-        #print(good_matches)
+    if(result_final is not None):
         cv.imshow('matched image', result_final)
 
-
 #If using a video file, videos captured by the webcam and MP4 files have been tested and work
-cap = cv.VideoCapture(1) #Capture Video from the connected USB, \dev\video\0 is the laptop's webcam
+cap = cv.VideoCapture(0) #Capture Video from the connected USB, \dev\video\0 is the laptop's webcam
 if not cap.isOpened():
     print("Cannot open camera")
     exit()
 cps = CountsPerSec().start()
 while True:
-    
     #cap.set(cv.CAP_PROP_FPS, 25)
     #Capture each frame
     ret, frame = cap.read()
