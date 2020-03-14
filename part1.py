@@ -6,8 +6,7 @@ import pickle
 import time
 
 from CountsPerSec import CountsPerSec
-
-frame_counter = 0
+from VideoGet import VideoGet
 
 def putIterationsPerSec(frame, iterations_per_sec):
     """
@@ -28,8 +27,6 @@ def unpickle_keypoints(array):
     return keypoints, np.array(descriptors)
 
 #https://nrsyed.com/2018/07/05/multithreading-with-opencv-python-to-improve-video-processing-performance/
-#Fuck you huge helpfuls link
-#Fix this function please and thanks bby
 def sift_operation(frame):
     sift = cv.xfeatures2d.SIFT_create()
     frame_kp, frame_d = sift.detectAndCompute(frame, None)
@@ -83,6 +80,31 @@ def sift_operation(frame):
     if(result_final is not None):
         cv.imshow('matched image', result_final)
 
+def threadVideoGet(source=0):
+    """
+    Dedicated thread for grabbing video frames with VideoGet object.
+    Main thread shows video frames.
+    """
+    frame_counter = 0
+    video_getter = VideoGet(source).start()
+    cps = CountsPerSec().start()
+
+    while True:
+        if (cv.waitKey(1) == ord("q")) or video_getter.stopped:
+            video_getter.stop()
+            break
+
+        frame = video_getter.frame
+        frame_counter += 1
+        if frame_counter == 20:
+            sift_operation(frame)
+            frame_counter = 0
+        frame = putIterationsPerSec(frame, cps.countsPerSec())
+        cv.imshow("Video", frame)
+        cps.increment()
+
+threadVideoGet(0)
+"""
 #If using a video file, videos captured by the webcam and MP4 files have been tested and work
 cap = cv.VideoCapture(0) #Capture Video from the connected USB, \dev\video\0 is the laptop's webcam
 if not cap.isOpened():
@@ -113,3 +135,4 @@ while True:
 #When everything is done, release the capture
 cap.release() 
 cv.destroyAllWindows()
+"""
