@@ -4,10 +4,12 @@ import argparse
 import os
 import pickle
 import time
+import threading
 
 from CountsPerSec import CountsPerSec
 from VideoGet import VideoGet
 from VideoShow import VideoShow
+from SIFTThread import SIFTThread
 
 def putIterationsPerSec(frame, iterations_per_sec):
     """
@@ -26,6 +28,7 @@ def threadBoth(source=0):
     """
     frame_counter = 0
     video_getter = VideoGet(source).start()
+    SIFT = SIFTThread(video_getter.frame).start()
     video_shower = VideoShow(video_getter.frame).start()
     cps = CountsPerSec().start()
 
@@ -38,6 +41,9 @@ def threadBoth(source=0):
         frame = video_getter.frame
         frame = putIterationsPerSec(frame, cps.countsPerSec())
         video_shower.frame = frame
+        #SIFT.run()
+        #SIFT is running, cannot show result due to issues acquiring mutex with imshow due to video. 
+        #threading.Timer(5.0, lambda: SIFT.run())
         cps.increment()
 
 threadBoth(0)

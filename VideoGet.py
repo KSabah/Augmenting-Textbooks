@@ -7,7 +7,7 @@ class VideoGet:
     with a dedicated thread.
     """
 
-    def __init__(self, src=1):
+    def __init__(self, src):
         self.cap = cv.VideoCapture(src)
         (self.grabbed, self.frame) = self.cap.read()
         self.stopped = False
