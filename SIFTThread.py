@@ -11,7 +11,7 @@ class SIFTThread():
         self.frame = frame
     
     def start(self):
-        threading.Thread(target=self.run).start()
+        threading.Thread(target=self.run()).start()
         return self
     
     def run(self):
@@ -70,7 +70,7 @@ class SIFTThread():
             #cv.imshow("Matched Result", result_final)
             cv.imwrite('Test/res.jpg', result_final) 
     
-        threading.Timer(20.0, lambda: self.run()).start()
+        threading.Timer(20.0, lambda: self.start()).start()
   
 
 

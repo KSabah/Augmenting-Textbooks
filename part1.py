@@ -19,7 +19,7 @@ def putIterationsPerSec(frame, iterations_per_sec):
         (10, 450), cv.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255))
     return frame
 
-def threadBoth(source=0):
+def threadBoth(source=1):
     """
     Dedicated thread for grabbing video frames with VideoGet object.
     Dedicated thread for showing video frames with VideoShow object.
@@ -39,11 +39,9 @@ def threadBoth(source=0):
             break
 
         frame = video_getter.frame
+        SIFT.frame = frame
         frame = putIterationsPerSec(frame, cps.countsPerSec())
         video_shower.frame = frame
-        #SIFT.run()
-        #SIFT is running, cannot show result due to issues acquiring mutex with imshow due to video. 
-        #threading.Timer(5.0, lambda: SIFT.run())
         cps.increment()
 
-threadBoth(0)
+threadBoth(1)
