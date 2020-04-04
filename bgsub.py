@@ -11,35 +11,7 @@ from VideoGet import VideoGet
 from VideoShow import VideoShow
 from SIFTThread import SIFTThread
 
-def farthest_point(defects, contour, centroid):
-    if defects is not None and centroid is not None:
-        s = defects[:, 0][:, 0]
-        cx, cy = centroid
-
-        x = np.array(contour[s][:, 0][:, 0], dtype=np.float)
-        y = np.array(contour[s][:, 0][:, 1], dtype=np.float)
-
-        xp = cv.pow(cv.subtract(x, cx), 2)
-        yp = cv.pow(cv.subtract(y, cy), 2)
-        dist = cv.sqrt(cv.add(xp, yp))
-
-        dist_max_i = np.argmax(dist)
-
-        if dist_max_i < len(s):
-            farthest_defect = s[dist_max_i]
-            farthest_point = tuple(contour[farthest_defect][0])
-            return farthest_point
-        else:
-            return None
-
-def centroid(max_contour):
-    moment = cv.moments(max_contour)
-    if moment['m00'] != 0:
-        cx = int(moment['m10'] / moment['m00'])
-        cy = int(moment['m01'] / moment['m00'])
-        return cx, cy
-    else:
-        return None
+threshold_area = 8000     #threshold area for contours
 
 def putIterationsPerSec(frame, iterations_per_sec):
     """
@@ -62,6 +34,9 @@ def threadBoth(source=1):
     fgbg = cv.createBackgroundSubtractorMOG2() 
     cps = CountsPerSec().start()
 
+    frameCount = 0
+    oldPoint = None
+
     while True:
         if video_getter.stopped or video_shower.stopped:
             video_shower.stop()
@@ -72,30 +47,41 @@ def threadBoth(source=1):
         SIFT.frame = frame
         # apply mask to extract forgeound object
         fgmask = fgbg.apply(frame) 
-        # preprocessing: erode to remove small finnicky bits
+        # preprocessing: blurring and eroding to remove small finnicky bits
         kernel = np.ones((5,5),np.uint8)
-        morph = cv.erode(fgmask,kernel,iterations = 3)
+        morph = cv.medianBlur(fgmask, 13)
+        morph = cv.erode(morph,kernel,iterations = 3)
+  
         # get the contours
         _, contours, _ = cv.findContours(morph, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
         if len(contours) != 0:
-            # ** Method One **
             # find the biggest countour by area
             c = max(contours, key = cv.contourArea)
-            # determine the top-most extreme points along the contour 
-            # -> https://www.pyimagesearch.com/2016/04/11/finding-extreme-points-in-contours-with-opencv/
-            extTop = tuple(c[c[:, :, 1].argmin()][0])
-            # draw a circle at the top-most point
-            cv.circle(frame, extTop, 8, (100, 0, 255), -1)
-           
-            # ** Method Two **
-            # -> https://dev.to/amarlearning/finger-detection-and-tracking-using-opencv-and-python-586m
-            #c = max(contours, key = cv.contourArea)
-            #hull = cv.convexHull(c, returnPoints=False)
-            #defects = cv.convexityDefects(c, hull)
-            #far_point = farthest_point(defects, c, (centroid(c)))
-            #cv.circle(frame, far_point, 5, [100, 0, 255], -1)
-            
-        frame = putIterationsPerSec(frame, cps.countsPerSec())
+            area = cv.contourArea(c)
+            # make sure contour area is bigger than threshold, don't want little contours
+            if area > threshold_area:
+                # determine the top-most extreme points along the contour 
+                # -> https://www.pyimagesearch.com/2016/04/11/finding-extreme-points-in-contours-with-opencv/
+                extTop = tuple(c[c[:, :, 1].argmin()][0])
+                # assign first value 
+                if (oldPoint is None):
+                    oldPoint = extTop
+                # if the finger stays for a few frames, we know someone is pointing    
+                if ((oldPoint[0]-5 <= extTop[0] <= oldPoint[0]+5) and (oldPoint[1]-5 <= extTop[1] <= oldPoint[1]+5)):
+                    if (extTop[0] != 0 and extTop[1] != 0):
+                        frameCount += 1
+                        print("count: ", frameCount)
+                        if frameCount == 20:
+                            frameCount = 0
+                            print ("Yeeeeeeeeeeet boy")
+                    oldPoint = extTop
+                else: 
+                    print("YOINK")
+                    frameCount = 0
+                    oldPoint = extTop
+                # draw a circle at the top-most point
+                cv.circle(frame, extTop, 8, (100, 0, 255), -1)
+                      
         video_shower.frame = frame
         cps.increment()
 
