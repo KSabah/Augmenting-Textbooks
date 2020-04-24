@@ -9,13 +9,14 @@ import threading
 class SIFTThread():
     def __init__(self, frame):
         self.frame = frame
-    
+        self.pagenum = 0        
+
     def start(self):
         threading.Thread(target=self.run()).start()
         return self
-    
+
     def run(self):
-        print("I've been called!")
+        print("Running SIFT page recognition now...")
         sift = cv.xfeatures2d.SIFT_create()
         frame_kp, frame_d = sift.detectAndCompute(self.frame, None)
 
@@ -59,6 +60,7 @@ class SIFTThread():
                     good_matches += 1
                     
             if good_matches > old_good_matches:
+                pagenum = str_arr[1]
                 old_good_matches = good_matches
                 result_final = groundtruth
                 matches_result = matches
@@ -66,13 +68,10 @@ class SIFTThread():
                 result_d = groundtruth_d
                     
         if(result_final is not None):
-            print("Result found!")
-            #cv.imshow("Matched Result", result_final)
-            cv.imwrite('Test/res.jpg', result_final) 
-    
-        threading.Timer(20.0, lambda: self.start()).start()
-  
-
+            print("Result found")
+            cv.imwrite('SIFT_results/res.jpg', result_final)
+            self.pagenum = pagenum
+            threading.Timer(20.0, lambda: self.start()).start()
 
 def unpickle_keypoints(array):
     keypoints = []
